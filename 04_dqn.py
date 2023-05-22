@@ -42,7 +42,8 @@ class DQN:
     def get_action(self, state):
         qvals = self.Q(state)
         return qvals.argmax()
-
+    
+    # 损失计算是核心
     def compute_loss(self, s_batch, a_batch, r_batch, d_batch, next_s_batch):
         # 计算s_batch，a_batch对应的值。
         qvals = self.Q(s_batch).gather(1, a_batch.unsqueeze(1)).squeeze()
@@ -52,7 +53,7 @@ class DQN:
         loss = F.mse_loss(r_batch + self.discount * next_qvals * (1 - d_batch), qvals)
         return loss
 
-
+# 参数在更新的时候要考虑到保守派的利益
 def soft_update(target, source, tau=0.01):
     """
     update target by target = tau * source + (1 - tau) * target.
@@ -61,6 +62,7 @@ def soft_update(target, source, tau=0.01):
         target_param.data.copy_(target_param.data * (1.0 - tau) + param.data * tau)
 
 
+# 队列长度有限，如果满了的话就要新人赶走旧人
 @dataclass
 class ReplayBuffer:
     maxsize: int
@@ -89,6 +91,7 @@ class ReplayBuffer:
 
     def sample(self, n):
         total_number = self.size if self.size < self.maxsize else self.maxsize
+        # 随机数字的生成
         indices = np.random.randint(total_number, size=n)
         state = [self.state[i] for i in indices]
         action = [self.action[i] for i in indices]
@@ -97,7 +100,7 @@ class ReplayBuffer:
         next_state = [self.next_state[i] for i in indices]
         return state, action, reward, done, next_state
 
-
+# 在对环境进行reset的时候会用到这个种子
 def set_seed(args):
     random.seed(args.seed)
     np.random.seed(args.seed)
@@ -122,6 +125,7 @@ def train(args, env, agent):
 
     agent.Q.train()
     state, _ = env.reset(seed=args.seed)
+    
     for i in range(args.max_steps):
         if np.random.rand() < epsilon or i < args.warmup_steps:
             action = env.action_space.sample()

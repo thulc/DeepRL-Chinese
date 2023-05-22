@@ -139,7 +139,8 @@ def train(args, env, agent):
 
         replay_buffer.push(state, action, reward, done, next_state)
         state = next_state
-
+        
+        # 完成一个轨迹
         if done is True:
             log["episode_reward"].append(episode_reward)
             log["episode_length"].append(episode_length)
@@ -151,13 +152,16 @@ def train(args, env, agent):
                 save_path = os.path.join(args.output_dir, "model.bin")
                 torch.save(agent.Q.state_dict(), save_path)
                 max_episode_reward = episode_reward
-
+                
+            # 重置
             episode_reward = 0
             episode_length = 0
+            # 探索率的衰减也是有底线的
             epsilon = max(epsilon - (epsilon_max - epsilon_min) * args.epsilon_decay, 1e-1)
             state, _ = env.reset()
 
         if i > args.warmup_steps:
+            # 冷启动之后，每完成一个轨迹，就抽样一个批次的历史数据，计算损失，更新梯度。
             bs, ba, br, bd, bns = replay_buffer.sample(n=args.batch_size)
             bs = torch.tensor(bs, dtype=torch.float32)
             ba = torch.tensor(ba, dtype=torch.long)
@@ -171,7 +175,7 @@ def train(args, env, agent):
             optimizer.zero_grad()
 
             log["loss"].append(loss.item())
-
+            
             soft_update(agent.target_Q, agent.Q)
 
     # 3. 画图。
@@ -184,7 +188,8 @@ def train(args, env, agent):
     plt.savefig(f"{args.output_dir}/episode_reward.png", bbox_inches="tight")
     plt.close()
 
-
+# 评估训练得到的策略到底好不好
+# 使用在线环境交互
 def eval(args, env, agent):
     agent = DQN(args.dim_state, args.num_action)
     model_path = os.path.join(args.output_dir, "model.bin")
